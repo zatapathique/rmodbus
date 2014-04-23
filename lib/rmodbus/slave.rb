@@ -244,8 +244,16 @@ module ModBus
       response = ""
       begin
         timeout(@read_retry_timeout, ModBusTimeout) do
-          send_pdu(request)
-          response = read_pdu
+	  if @io.is_a?(TCPSocket)
+            send_pdu(request)
+            response = read_pdu
+          else
+            @io.rts = 1 # set ready to send flag to true
+            send_pdu(request) # send request
+            Termios.tcdrain(@io) # wait till all data went through io
+            @io.rts = 0 # set ready to send flag to false (meaning we are ready to read)
+            response = read_pdu # read data
+          end
         end
       rescue ModBusTimeout => err
         log "Timeout of read operation: (#{@read_retries - tried})"
